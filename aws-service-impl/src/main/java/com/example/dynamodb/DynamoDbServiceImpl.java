@@ -22,22 +22,32 @@ public class DynamoDbServiceImpl implements DynamoDbService {
     private AmazonDynamoDB amazonDynamoDB;
 
     @Override
-    public ResponseEntity<String> createTable(String tableName) {
+    public ResponseEntity<String> createTable(String tableName, String key) {
         CreateTableRequest request = new CreateTableRequest()
                 .withAttributeDefinitions(new AttributeDefinition(
-                        "Name", ScalarAttributeType.S))
-                .withKeySchema(new KeySchemaElement("Name", KeyType.HASH))
+                        key, ScalarAttributeType.S))
+                .withKeySchema(new KeySchemaElement(key, KeyType.HASH))
                 .withProvisionedThroughput(new ProvisionedThroughput(
                         10L, 10L))
                 .withTableName(tableName);
         try {
             CreateTableResult result = amazonDynamoDB.createTable(request);
             System.out.println(result.getTableDescription().getTableName());
+            if (result.getTableDescription().getTableName().contains("exists")) {
+                return ResponseEntity.status(HttpStatus.ALREADY_REPORTED).body(result.getTableDescription().getTableName());
+            }
+            else {
+                return ResponseEntity.ok("Table created");
+            }
         } catch (AmazonServiceException e) {
             System.err.println(e.getErrorMessage());
-            ResponseEntity.ok("Table not created");
+            return ResponseEntity.ok("Table not created, " + e.getErrorMessage());
         }
-        return ResponseEntity.ok("Table created");
+        catch (Exception exception) {
+            System.out.println(exception.getMessage());
+            return ResponseEntity.ok(exception.getMessage());
+        }
+
     }
 
     @Override
@@ -83,11 +93,10 @@ public class DynamoDbServiceImpl implements DynamoDbService {
       try {
           Map<String, AttributeValue> returned_item = getItemFromDb(tableName, key);
             if (returned_item != null) {
-                Set<String> keys = returned_item.keySet();
-                return ResponseEntity.ok(keys);
+                return ResponseEntity.ok(returned_item);
             } else {
-                System.out.format("No item found with the key %s!\n", key);
-                return ResponseEntity.status(HttpStatus.EXPECTATION_FAILED).body("No item found with the key %s!\n" + key);
+                System.out.format("No item found with the key %s\n", key);
+                return ResponseEntity.status(HttpStatus.EXPECTATION_FAILED).body("No item found with the key : " + key);
             }
         } catch (AmazonServiceException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getErrorMessage());
@@ -99,10 +108,8 @@ public class DynamoDbServiceImpl implements DynamoDbService {
 
     @Override
     public ResponseEntity<Object> addItems(String name, Map<String, AttributeValue> extraFields, String tableName) {
-        HashMap<String, AttributeValue> item_values =
-                new HashMap<String, AttributeValue>();
 
-        item_values.put("Name", new AttributeValue(name));
+       extraFields.put("Name", new AttributeValue(name));
 
         try {
             amazonDynamoDB.putItem(tableName, extraFields);
@@ -126,7 +133,6 @@ public class DynamoDbServiceImpl implements DynamoDbService {
 
         HashMap<String, AttributeValueUpdate> updated_values =
                 new HashMap<String, AttributeValueUpdate>();
-
         for (Map.Entry<String, AttributeValue> entry : item.entrySet()) {
             updated_values.put(entry.getKey(), new AttributeValueUpdate(
                     entry.getValue(), AttributeAction.PUT));
@@ -194,10 +200,13 @@ public class DynamoDbServiceImpl implements DynamoDbService {
         }
     }
 
+    //todo : Need to complete
     @Override
     public ResponseEntity<String> deleteItem(String tableName, String itemKey) {
         try {
-            amazonDynamoDB.deleteItem(new DeleteItemRequest(tableName, getItemFromDb(tableName,itemKey)));
+            Map<String, AttributeValue> items = new HashMap<>();
+            items.put("Name", new AttributeValue(itemKey));
+            amazonDynamoDB.deleteItem(new DeleteItemRequest(tableName, items));
             return ResponseEntity.ok("Deleted successfully");
         }
         catch (Exception exception) {
@@ -206,15 +215,18 @@ public class DynamoDbServiceImpl implements DynamoDbService {
         }
     }
 
+    // fetching data from the database.
     private Map<String, AttributeValue> getItemFromDb(String tableName, String key) {
         HashMap<String, AttributeValue> key_to_get =
                 new HashMap<String, AttributeValue>();
 
-        key_to_get.put(tableName, new AttributeValue(key));
+        key_to_get.put("Name", new AttributeValue(key));
 
         GetItemRequest request = new GetItemRequest()
                 .withKey(key_to_get)
                 .withTableName(tableName);
-        return amazonDynamoDB.getItem(request).getItem();
+        Map<String, AttributeValue> attributeValueMap = amazonDynamoDB.getItem(request).getItem();
+        System.out.println(attributeValueMap);
+        return attributeValueMap;
     }
 }

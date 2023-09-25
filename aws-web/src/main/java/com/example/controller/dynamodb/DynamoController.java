@@ -16,17 +16,17 @@ public class DynamoController {
 
     @Autowired
     private DynamoDbService dynamoDbService;
-    @PostMapping
-    public ResponseEntity<String> createDynamoDbTable(@RequestParam("tableName") String tableName) {
-        return dynamoDbService.createTable(tableName);
+    @PostMapping(value = "/{tableName}")
+    public ResponseEntity<String> createDynamoDbTable(@PathVariable("tableName") String tableName, @RequestParam("key") String key) {
+        return dynamoDbService.createTable(tableName, key);
     }
     @GetMapping
     public ResponseEntity<Object> getItem(@RequestParam("key") String key,@RequestParam("tableName") String tableName ) {
         return dynamoDbService.getItems(key, tableName);
     }
     @PostMapping(value = "/add")
-    public ResponseEntity<Object> addItem(@RequestParam("name") String name, @RequestBody Map<String, AttributeValue> extraItems, @RequestParam("tableName") String tableName) {
-        return dynamoDbService.addItems(name, extraItems, tableName);
+    public ResponseEntity<Object> addItem(@RequestParam("name") String name,@RequestBody Map<String, AttributeValue> extraItems, @RequestParam("tableName") String tableName) {
+        return dynamoDbService.addItems(name,extraItems, tableName);
     }
     @GetMapping(value = "/list")
     public ResponseEntity<List<String>> listTable() {
